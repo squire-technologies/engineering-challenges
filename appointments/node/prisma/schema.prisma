@@ -1,0 +1,102 @@
+generator client {
+  provider     = "prisma-client"
+  output       = "../src/generated/prisma"
+  moduleFormat = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Shop {
+  id               String         @id @default(uuid()) @db.Uuid
+  name             String
+  // IANA time zone, e.g. America/New_York. Working hours are wall-clock times in this zone.
+  timezone         String
+  slotIntervalMin  Int            @default(15) @map("slot_interval_min")
+  staff            Staff[]
+  services         Service[]
+  appointments     Appointment[]
+
+  @@map("shops")
+}
+
+model Staff {
+  id           String        @id @default(uuid()) @db.Uuid
+  shopId       String        @map("shop_id") @db.Uuid
+  name         String
+  shop         Shop          @relation(fields: [shopId], references: [id])
+  workingHours WorkingHours[]
+  timeOff      TimeOff[]
+  appointments Appointment[]
+
+  @@index([shopId])
+  @@map("staff")
+}
+
+model WorkingHours {
+  id        String @id @default(uuid()) @db.Uuid
+  staffId   String @map("staff_id") @db.Uuid
+  // 0 = Sunday ... 6 = Saturday
+  weekday   Int
+  // "HH:MM", wall-clock time in the shop's time zone
+  startTime String @map("start_time")
+  endTime   String @map("end_time")
+  staff     Staff  @relation(fields: [staffId], references: [id])
+
+  @@unique([staffId, weekday])
+  @@map("working_hours")
+}
+
+model TimeOff {
+  id      String   @id @default(uuid()) @db.Uuid
+  staffId String   @map("staff_id") @db.Uuid
+  startAt DateTime @map("start_at") @db.Timestamptz(3)
+  endAt   DateTime @map("end_at") @db.Timestamptz(3)
+  reason  String?
+  staff   Staff    @relation(fields: [staffId], references: [id])
+
+  @@index([staffId, startAt])
+  @@map("time_off")
+}
+
+model Service {
+  id           String        @id @default(uuid()) @db.Uuid
+  shopId       String        @map("shop_id") @db.Uuid
+  name         String
+  durationMin  Int           @map("duration_min")
+  priceCents   Int           @map("price_cents")
+  shop         Shop          @relation(fields: [shopId], references: [id])
+  appointments Appointment[]
+
+  @@index([shopId])
+  @@map("services")
+}
+
+enum AppointmentStatus {
+  booked
+  cancelled
+
+  @@map("appointment_status")
+}
+
+model Appointment {
+  id            String            @id @default(uuid()) @db.Uuid
+  shopId        String            @map("shop_id") @db.Uuid
+  staffId       String            @map("staff_id") @db.Uuid
+  serviceId     String            @map("service_id") @db.Uuid
+  customerName  String            @map("customer_name")
+  customerPhone String            @map("customer_phone")
+  startAt       DateTime          @map("start_at") @db.Timestamptz(3)
+  endAt         DateTime          @map("end_at") @db.Timestamptz(3)
+  status        AppointmentStatus @default(booked)
+  createdAt     DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+  shop          Shop              @relation(fields: [shopId], references: [id])
+  staff         Staff             @relation(fields: [staffId], references: [id])
+  service       Service           @relation(fields: [serviceId], references: [id])
+
+  @@index([staffId, startAt])
+  @@index([shopId, startAt])
+  @@map("appointments")
+}

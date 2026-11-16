@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Salon Booking</title>
+<style>
+  :root {
+    --bg: #f6f3ee; --panel: #fffdf9; --ink: #1f1c18; --muted: #6f675d; --line: #e2dbd0;
+    --accent: #2f5d50; --accent-ink: #fff; --busy: #c96f4a; --off: #d9d2c6; --error: #a3322a;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); }
+  header { display: flex; align-items: baseline; gap: 24px; padding: 20px 24px 0; }
+  h1 { font: 600 20px/1.2 Georgia, serif; margin: 0; }
+  nav button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 6px 2px; margin-right: 16px; font: inherit; color: var(--muted); cursor: pointer; }
+  nav button.active { color: var(--ink); border-color: var(--accent); }
+  main { padding: 16px 24px 40px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  .controls { display: flex; flex-wrap: wrap; gap: 12px; align-items: end; margin-bottom: 16px; }
+  label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  select, input { font: inherit; padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: #fff; min-width: 160px; }
+  .primary { background: var(--accent); color: var(--accent-ink); border: 0; border-radius: 6px; padding: 8px 14px; font: inherit; cursor: pointer; }
+  .day { margin-bottom: 14px; }
+  .day h3 { font-size: 13px; margin: 0 0 6px; color: var(--muted); font-weight: 600; }
+  .slots { display: flex; flex-wrap: wrap; gap: 6px; }
+  .slot { border: 1px solid var(--line); background: #fff; border-radius: 6px; padding: 5px 9px; cursor: pointer; font: inherit; font-variant-numeric: tabular-nums; }
+  .slot.selected { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .message { margin-top: 12px; font-size: 14px; }
+  .message.error { color: var(--error); }
+  .hidden { display: none; }
+  .grid-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+  .grid { display: grid; position: relative; min-width: max-content; }
+  .col-head { position: sticky; top: 0; font-size: 12px; font-weight: 600; padding: 8px; border-bottom: 1px solid var(--line); background: var(--panel); text-align: center; }
+  .col { position: relative; border-left: 1px solid var(--line); width: 130px; }
+  .hours { position: relative; width: 52px; }
+  .hour-label { position: absolute; right: 6px; font-size: 11px; color: var(--muted); transform: translateY(-50%); }
+  .closed { position: absolute; left: 0; right: 0; background: repeating-linear-gradient(45deg, #efe9df, #efe9df 4px, #f6f1ea 4px, #f6f1ea 8px); }
+  .block { position: absolute; left: 4px; right: 4px; border-radius: 5px; padding: 3px 5px; font-size: 11px; overflow: hidden; cursor: pointer; }
+  .block.booked { background: var(--busy); color: #fff; }
+  .block.cancelled { background: transparent; border: 1px dashed var(--muted); color: var(--muted); }
+  .block.other { background: #8a7d6d; color: #fff; }
+  .block.timeoff { background: var(--off); color: var(--muted); cursor: default; }
+  @media (max-width: 600px) { header, main { padding-left: 16px; padding-right: 16px; } select, input { min-width: 0; width: 100%; } .controls label { flex: 1 1 140px; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>Salon Booking</h1>
+  <nav><button data-tab="book" class="active">Book</button><button data-tab="day">Day view</button></nav>
+</header>
+<main>
+  <section id="book">
+    <div class="panel">
+      <div class="controls">
+        <label>Shop <select id="b-shop"></select></label>
+        <label>Service <select id="b-service"></select></label>
+        <label>Staff <select id="b-staff"></select></label>
+        <label>From <input id="b-date" type="date"></label>
+        <button class="primary" id="b-find">Show times</button>
+      </div>
+      <div id="b-days"></div>
+      <div id="b-form" class="controls hidden">
+        <label>Name <input id="b-name" value="Test Customer"></label>
+        <label>Phone <input id="b-phone" value="+15550100"></label>
+        <button class="primary" id="b-submit">Book <span id="b-chosen"></span></button>
+      </div>
+      <div id="b-message" class="message"></div>
+    </div>
+  </section>
+
+  <section id="day" class="hidden">
+    <div class="controls">
+      <label>Shop <select id="d-shop"></select></label>
+      <label>Date <input id="d-date" type="date"></label>
+      <button class="primary" id="d-load">Load</button>
+    </div>
+    <div class="grid-wrap"><div id="d-grid" class="grid"></div></div>
+    <div id="d-message" class="message"></div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const DAY_START_HOUR = 7;
+const DAY_END_HOUR = 21;
+const PX_PER_MIN = 1;
+let shops = [];
+let chosen = null;
+
+async function api(path, options = {}) {
+  const response = await fetch(path, { headers: { 'content-type': 'application/json' }, ...options });
+  const body = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message = Array.isArray(body?.message) ? body.message.join(', ') : body?.message;
+    throw new Error(`${response.status}: ${message ?? response.statusText}`);
+  }
+  return body;
+}
+
+function localParts(iso, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(new Date(iso));
+  const get = (type) => Number(parts.find((p) => p.type === type).value);
+  return { hour: get('hour'), minute: get('minute') };
+}
+
+function formatTime(iso, timeZone) {
+  return new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit' }).format(new Date(iso));
+}
+
+function todayIn(timeZone) {
+  return new Intl.DateTimeFormat('en-CA', { timeZone }).format(new Date());
+}
+
+function shopById(id) {
+  return shops.find((s) => s.id === id);
+}
+
+function fillSelect(select, items, label, extra) {
+  select.innerHTML = (extra ? `<option value="">${extra}</option>` : '') +
+    items.map((item) => `<option value="${item.id}">${label(item)}</option>`).join('');
+}
+
+function onShopChange() {
+  const shop = shopById($('b-shop').value);
+  fillSelect($('b-service'), shop.services, (s) => `${s.name} (${s.durationMin} min)`);
+  fillSelect($('b-staff'), shop.staff, (s) => s.name, 'Any staff');
+  $('b-date').value = todayIn(shop.timezone);
+  $('b-days').innerHTML = '';
+  $('b-form').classList.add('hidden');
+}
+
+async function findTimes() {
+  const shop = shopById($('b-shop').value);
+  const params = new URLSearchParams({ serviceId: $('b-service').value, date: $('b-date').value, days: '3' });
+  if ($('b-staff').value) params.set('staffId', $('b-staff').value);
+  $('b-message').textContent = '';
+  $('b-form').classList.add('hidden');
+  try {
+    const days = await api(`/shops/${shop.id}/availability?${params}`);
+    $('b-days').innerHTML = days.map((day) => `
+      <div class="day"><h3>${day.date}</h3><div class="slots">${
+        day.slots.length
+          ? day.slots.map((slot) => `<button class="slot" data-start="${slot.start}" data-staff="${slot.staffIds.join(',')}">${formatTime(slot.start, shop.timezone)}</button>`).join('')
+          : '<span class="message">No free times</span>'
+      }</div></div>`).join('');
+  } catch (error) {
+    showError('b-message', error);
+  }
+}
+
+function chooseSlot(button) {
+  document.querySelectorAll('.slot.selected').forEach((b) => b.classList.remove('selected'));
+  button.classList.add('selected');
+  chosen = { start: button.dataset.start };
+  $('b-chosen').textContent = formatTime(chosen.start, shopById($('b-shop').value).timezone);
+  $('b-form').classList.remove('hidden');
+}
+
+async function book() {
+  const body = {
+    shopId: $('b-shop').value,
+    serviceId: $('b-service').value,
+    start: chosen.start,
+    customerName: $('b-name').value,
+    customerPhone: $('b-phone').value,
+  };
+  if ($('b-staff').value) body.staffId = $('b-staff').value;
+  try {
+    const appointment = await api('/appointments', { method: 'POST', body: JSON.stringify(body) });
+    const shop = shopById(body.shopId);
+    const staff = shop.staff.find((s) => s.id === appointment.staffId);
+    $('b-message').className = 'message';
+    $('b-message').textContent = `Booked with ${staff.name} at ${formatTime(appointment.start, shop.timezone)} (${appointment.status}).`;
+  } catch (error) {
+    showError('b-message', error);
+  }
+}
+
+async function loadDay() {
+  const shop = shopById($('d-shop').value);
+  $('d-message').textContent = '';
+  try {
+    const schedule = await api(`/shops/${shop.id}/schedule?date=${$('d-date').value}`);
+    renderDay(schedule);
+  } catch (error) {
+    showError('d-message', error);
+  }
+}
+
+function minutesFromTop(iso, timeZone) {
+  const { hour, minute } = localParts(iso, timeZone);
+  return Math.max(0, (hour - DAY_START_HOUR) * 60 + minute);
+}
+
+function place(start, end, timeZone) {
+  const top = minutesFromTop(start, timeZone) * PX_PER_MIN;
+  const bottom = Math.min(minutesFromTop(end, timeZone), (DAY_END_HOUR - DAY_START_HOUR) * 60) * PX_PER_MIN;
+  return `top:${top}px;height:${Math.max(bottom - top, 12)}px`;
+}
+
+function renderDay(schedule) {
+  const tz = schedule.timezone;
+  const height = (DAY_END_HOUR - DAY_START_HOUR) * 60 * PX_PER_MIN;
+  const grid = $('d-grid');
+  grid.style.gridTemplateColumns = `52px repeat(${schedule.staff.length}, 130px)`;
+  const hourLabels = Array.from({ length: DAY_END_HOUR - DAY_START_HOUR + 1 }, (_, i) =>
+    `<div class="hour-label" style="top:${i * 60 * PX_PER_MIN}px">${DAY_START_HOUR + i}:00</div>`).join('');
+
+  const columns = schedule.staff.map((staff) => {
+    const closed = staff.workingHours
+      ? `<div class="closed" style="top:0;height:${minutesFromTop(staff.workingHours.start, tz)}px"></div>
+         <div class="closed" style="top:${minutesFromTop(staff.workingHours.end, tz)}px;bottom:0"></div>`
+      : `<div class="closed" style="top:0;bottom:0"></div>`;
+    const timeOff = staff.timeOff.map((t) => `<div class="block timeoff" style="${place(t.start, t.end, tz)}">${t.reason ?? 'Time off'}</div>`).join('');
+    const appointments = staff.appointments.map((a) => {
+      const kind = ['booked', 'cancelled'].includes(a.status) ? a.status : 'other';
+      return `<div class="block ${kind}" style="${place(a.start, a.end, tz)}" data-id="${a.id}" data-status="${a.status}"
+        title="${a.customerName}, ${a.serviceName}, ${a.status}">${formatTime(a.start, tz)} ${a.serviceName}<br>${a.customerName}</div>`;
+    }).join('');
+    return `<div class="col" style="height:${height}px">${closed}${timeOff}${appointments}</div>`;
+  }).join('');
+
+  grid.innerHTML =
+    `<div class="col-head"></div>${schedule.staff.map((s) => `<div class="col-head">${s.name}</div>`).join('')}` +
+    `<div class="hours" style="height:${height}px">${hourLabels}</div>${columns}`;
+}
+
+async function cancelAppointment(block) {
+  if (block.dataset.status === 'cancelled' || !confirm(`Cancel this appointment?\n${block.title}`)) return;
+  try {
+    await api(`/appointments/${block.dataset.id}/cancel`, { method: 'POST' });
+    await loadDay();
+  } catch (error) {
+    showError('d-message', error);
+  }
+}
+
+function showError(id, error) {
+  $(id).className = 'message error';
+  $(id).textContent = error.message;
+}
+
+function showTab(tab) {
+  document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  $('book').classList.toggle('hidden', tab !== 'book');
+  $('day').classList.toggle('hidden', tab !== 'day');
+}
+
+async function init() {
+  shops = await api('/shops');
+  fillSelect($('b-shop'), shops, (s) => s.name);
+  fillSelect($('d-shop'), shops, (s) => s.name);
+  $('d-date').value = todayIn(shops[0].timezone);
+  onShopChange();
+  $('b-shop').addEventListener('change', onShopChange);
+  $('b-find').addEventListener('click', findTimes);
+  $('b-days').addEventListener('click', (e) => e.target.matches('.slot') && chooseSlot(e.target));
+  $('b-submit').addEventListener('click', book);
+  $('d-load').addEventListener('click', loadDay);
+  $('d-grid').addEventListener('click', (e) => {
+    const block = e.target.closest('.block[data-id]');
+    if (block) cancelAppointment(block);
+  });
+  document.querySelector('nav').addEventListener('click', (e) => e.target.dataset.tab && showTab(e.target.dataset.tab));
+}
+
+init().catch((error) => showError('b-message', error));
+</script>
+</body>
+</html>

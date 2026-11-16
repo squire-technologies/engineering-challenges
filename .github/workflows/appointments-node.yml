@@ -1,0 +1,46 @@
+name: appointments/node
+
+on:
+  pull_request:
+    paths:
+      - appointments/node/**
+      - .github/workflows/appointments-node.yml
+  push:
+    branches: [main]
+    paths:
+      - appointments/node/**
+      - .github/workflows/appointments-node.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: appointments/node
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: salon
+          POSTGRES_PASSWORD: salon
+          POSTGRES_DB: salon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U salon -d salon"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: appointments/node/package-lock.json
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npm run typecheck
+      - run: npx prisma migrate deploy
+      - run: npx prisma db seed
+      - run: npm run build
