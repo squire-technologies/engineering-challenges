@@ -1,0 +1,46 @@
+name: appointments/java
+
+on:
+  pull_request:
+    paths:
+      - appointments/java/**
+      - .github/workflows/appointments-java.yml
+  push:
+    branches: [main]
+    paths:
+      - appointments/java/**
+      - .github/workflows/appointments-java.yml
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: appointments/java
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: salon
+          POSTGRES_PASSWORD: salon
+          POSTGRES_DB: salon
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U salon -d salon"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 30
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: maven
+      - name: Compile
+        run: ./mvnw -B -q -DskipTests test-compile
+      - name: Migrate and seed
+        run: ./mvnw -B -q exec:java -Dexec.classpathScope=test -Dexec.mainClass=com.squire.salon.tools.Seed
+      - name: Package
+        run: ./mvnw -B -q -DskipTests package

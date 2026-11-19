@@ -1,6 +1,6 @@
 // Fires concurrent bookings at the running API and checks that no two bookings overlap.
 // It uses the "Race Test" staff member of Corner Barbers on a day one week from today.
-// Usage: make race (the API must be running, see `make dev`).
+// Usage: make check-bookings (the API must be running, see `make dev`).
 import { addDays, toLocalDate, wallClockToUtc } from '../src/common/time';
 import type { ShopWithCatalog } from '../src/shops/shops.types';
 import type { ScheduleDay } from '../src/booking/booking.types';
@@ -147,6 +147,6 @@ function countBy(values: string[]): string {
 }
 
 main().catch((error) => {
-  console.error(`Race check could not run: ${error.message}. Is the API running on ${API}?`);
+  console.error(`Booking check could not run: ${error.message}. Is the API running on ${API}?`);
   process.exitCode = 1;
 });

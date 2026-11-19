@@ -1,4 +1,4 @@
-.PHONY: setup up seed dev race down
+.PHONY: setup up seed dev check-bookings down
 
 setup:
 	npm install
@@ -15,8 +15,8 @@ seed: up
 dev: up
 	npm run dev
 
-race:
-	npm run race
+check-bookings:
+	npm run check-bookings
 
 down:
 	docker compose down
