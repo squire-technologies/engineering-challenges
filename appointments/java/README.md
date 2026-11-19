@@ -21,6 +21,7 @@ make check-bookings   # in a second terminal: sends concurrent bookings to the A
 ```
 
 On the starting code, `make check-bookings` shows that 1 of 4 checks passes. This is expected.
+`make dev` does not reload code. Stop it and start it again after each change.
 
 Open http://localhost:3000. You can book an appointment and see it in the day view.
 If all of this works, you are ready.

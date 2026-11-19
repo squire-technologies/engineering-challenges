@@ -6,7 +6,7 @@ TOOL = ./mvnw -q test-compile exec:java -Dexec.classpathScope=test -Dexec.mainCl
 .PHONY: setup up seed dev check-bookings down
 
 setup:
-	./mvnw -q -DskipTests package
+	./mvnw -DskipTests package
 
 up:
 	docker compose up -d --wait

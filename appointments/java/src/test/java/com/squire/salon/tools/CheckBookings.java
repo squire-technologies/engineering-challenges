@@ -13,6 +13,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 import tools.jackson.databind.JsonNode;
@@ -132,11 +134,14 @@ public class CheckBookings {
     return request("POST", "/appointments", body);
   }
 
+  /** Sends all requests at the same moment, one virtual thread each, whatever the number of CPU cores. */
   private List<Response> bookAll(List<String[]> requests) {
-    List<CompletableFuture<Response>> pending = requests.stream()
-        .map(r -> CompletableFuture.supplyAsync(() -> book(r[0], r[1])))
-        .toList();
-    return pending.stream().map(CompletableFuture::join).toList();
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+      List<CompletableFuture<Response>> pending = requests.stream()
+          .map(r -> CompletableFuture.supplyAsync(() -> book(r[0], r[1]), executor))
+          .toList();
+      return pending.stream().map(CompletableFuture::join).toList();
+    }
   }
 
   private static List<String[]> times(int count, String serviceId, String start) {
