@@ -14,13 +14,13 @@ You need Docker with Docker Compose, and Node.js 22.12 or later (Node.js 24 is r
 
 ```bash
 cd appointments/node
-make setup   # installs packages and generates the Prisma client
-make seed    # starts PostgreSQL, applies the migrations, and loads the seed data
-make dev     # starts the API and the UI on http://localhost:3000
-make race    # in a second terminal: sends concurrent bookings to the API
+make setup            # installs packages and generates the Prisma client
+make seed             # starts PostgreSQL, applies the migrations, and loads the seed data
+make dev              # starts the API and the UI on http://localhost:3000
+make check-bookings   # in a second terminal: sends concurrent bookings to the API
 ```
 
-On the starting code, `make race` shows that 1 of 4 checks passes. This is expected.
+On the starting code, `make check-bookings` shows that 1 of 4 checks passes. This is expected.
 
 Open http://localhost:3000. You can book an appointment and see it in the day view.
 If all of this works, you are ready.
@@ -46,12 +46,12 @@ The stack is NestJS, Prisma 7, and PostgreSQL 17.
 | `src/shops/` | The shops module: shops, staff, working hours, time off, and services. |
 | `src/booking/` | The booking module: availability, booking, cancellation, and the schedule of one day. |
 | `src/common/time.ts` | Time zone helpers. Working hours are local wall-clock times in the shop's time zone. |
+| `public/index.html` | A booking page and a staff day view. It is plain HTML with no build step. |
+| `scripts/check-bookings.ts` | The `make check-bookings` checks. |
 
 Each module has the same layers. A controller calls a service, and a service calls a repository.
 Only repositories use Prisma. A module reads another module's data only through that module's exported service.
 Keep these rules in your changes.
-| `public/index.html` | A booking page and a staff day view. It is plain HTML with no build step. |
-| `scripts/race.ts` | The `make race` checks. |
 
 ### API
 
@@ -85,7 +85,7 @@ During a `free` step, the staff member can serve another client.
 - The busy time of two appointments must never overlap for the same staff member.
 - This must stay true when many requests arrive at the same time.
 - A cancelled appointment frees its time.
-- `make race` must pass all 4 checks.
+- `make check-bookings` must pass all 4 checks.
 
 ### Part 3: checkout hold and deposit (stretch)
 
@@ -107,9 +107,9 @@ Do one of these:
 
 ## Rules
 
-- Keep the fields `id`, `start`, `end`, and `status` in the appointment response. `make race` reads them.
-- Keep the shape of the schedule response. `make race` reads it to clean up its bookings.
-- Keep the names of the seed shops, staff, and services. `make race` uses them.
+- Keep the fields `id`, `start`, `end`, and `status` in the appointment response. `make check-bookings` reads them.
+- Keep the shape of the schedule response. `make check-bookings` reads it to clean up its bookings.
+- Keep the names of the seed shops, staff, and services. `make check-bookings` uses them.
 - You can change everything else: the schema, the code, the libraries, and the structure.
 - Use AI as you want. You must understand and explain every line that you submit.
 

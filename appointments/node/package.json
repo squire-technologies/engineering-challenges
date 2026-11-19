@@ -6,7 +6,7 @@
     "build": "nest build",
     "typecheck": "tsc --noEmit",
     "dev": "nest start --watch",
-    "race": "tsx scripts/race.ts"
+    "check-bookings": "tsx scripts/check-bookings.ts"
   },
   "engines": {
     "node": ">=22.12"
