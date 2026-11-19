@@ -100,6 +100,15 @@ Salon services are expensive, so the shop takes a deposit at booking.
 - A hold that expires frees its time.
 - A payment can arrive after its hold expired. If that happens, record that the deposit needs a refund. The refund itself is out of scope.
 
+There is no payment provider. You build the webhook endpoint, and you send the webhook yourself with `curl`:
+
+```bash
+curl -X POST localhost:3000/webhooks/payments -H 'content-type: application/json' \
+  -d '{"eventId":"evt_1","appointmentId":"<id of the held booking>","amountCents":2000}'
+```
+
+To send a duplicate, send the same `eventId` again. `make check-bookings` does not test this part.
+
 ### Part 4: frontend (optional)
 
 Do one of these:
